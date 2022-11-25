@@ -20,18 +20,32 @@ async def start(message: types.Message):
 
 @dp.message_handler(commands=['contact'])
 async def send_contacts(message: types.Message):
-    if message.from_user.id == 1815007884:
-        cur = connect.cursor()
-        cur.execute(f"SELECT id, name, email, phone, subject FROM settings_contact;")
-        result = cur.fetchall()
-        for i in result:
-            res = "".join(list(str(i))).replace(",", "").replace("'", "").replace("(", "").replace(")", "")
-            with open('contact.txt', 'a+') as contact:
-                contact.write(f"{res}\n")
-        with open('contact.txt', 'r') as contact:
-            await message.answer(contact.read())
-            os.remove('contact.txt')
-    else:
-        await message.answer("Вы не имеете право получать такую информацию")
+    cursor = connect.cursor()
+    cursor.execute(f"SELECT id_telegram FROM users_user;")
+    result = cursor.fetchall()
+    for user in result:
+        if message.from_user.id in user:
+            cur = connect.cursor()
+            cur.execute(f"SELECT id, name, email, phone, subject, status FROM settings_contact;")
+            result = cur.fetchall()
+            print(result)
+            if result:
+                for i in result:
+                    res = "".join(list(str(i))).replace(",", "").replace("'", "").replace("(", "").replace(")", "")
+                    with open('contact.txt', 'a+') as contact:
+                        if 'False' in res:
+                            contact.write(f"{res}\n")
+                        else:
+                            await message.answer("Нет текущих контактов")
+                with open('contact.txt', 'r') as contact:
+                    try:
+                        await message.answer(contact.read())
+                    except:
+                        pass
+                    os.remove('contact.txt')
+            else:
+                await message.answer("Нету контактов")
+        else:
+            await message.answer("Вы не имеете право получать такую информацию")
 
 executor.start_polling(dp)
