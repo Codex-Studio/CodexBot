@@ -6,6 +6,7 @@ import config
 import psycopg2
 import logging
 import os
+import time
 
 bot = Bot(token = config.token)
 dp = Dispatcher(bot, storage=MemoryStorage())
@@ -25,12 +26,12 @@ class MailingState(StatesGroup):
 async def start(message: types.Message):
     await message.answer(f"Здраствуйте, {message.from_user.full_name}. Чем могу помочь?")
     cur = connect.cursor()
-    cur.execute(f"CREATE TABLE IF NOT EXISTS telegram_users(user_id BIGINT, chat_id BIGINT);")
-    cur.execute(f"SELECT * FROM telegram_users WHERE user_id = {message.from_user.id};")
+    # cur.execute(f"CREATE TABLE IF NOT EXISTS telegram_users_telegramuser(user_id BIGINT, chat_id BIGINT);")
+    cur.execute(f"SELECT * FROM telegram_users_telegramuser WHERE user_id = {message.from_user.id};")
     res = cur.fetchall()
     print(res)
     if res == []:
-        cur.execute(f"INSERT INTO telegram_users VALUES ('{message.from_user.id}', '{message.chat.id}')")
+        cur.execute(f"INSERT INTO telegram_users_telegramuser (user_id, chat_id, first_name, last_name, username, added) VALUES ('{message.from_user.id}', '{message.chat.id}', '{message.from_user.first_name}', '{message.from_user.last_name}', '{message.from_user.username}', '{time.ctime()}');")
     connect.commit()
 
 @dp.message_handler(commands=['contact'])
@@ -70,17 +71,31 @@ async def create_admin(message: types.Message):
 
 @dp.message_handler(commands=['mailing'])
 async def mailing(message: types.Message):
-    await message.answer("Введите сообщение рассылки")
-    await MailingState.mail.set()
+    admin = connect.cursor()
+    admin.execute(f"SELECT id_telegram FROM users_user;")
+    result = admin.fetchall()
+    for user in result:
+        if message.from_user.id in user:
+            await message.answer("Введите сообщение рассылки")
+            await MailingState.mail.set()
+            break
+    else:
+        await message.answer("У вас нету прав")
 
 @dp.message_handler(state = MailingState.mail)
 async def send_mailing(message: types.Message, state : FSMContext):
-    cur = connect.cursor()
-    cur.execute("SELECT chat_id FROM telegram_users;")
-    result = cur.fetchall()
-    print(result)
-    for i in result:
-        await bot.send_message(chat_id=int(i[0]), text = message.text)
+    admin = connect.cursor()
+    admin.execute(f"SELECT id_telegram FROM users_user;")
+    result = admin.fetchall()
+    for user in result:
+        if message.from_user.id in user:
+            cur = connect.cursor()
+            cur.execute("SELECT chat_id FROM telegram_users_telegramuser;")
+            result = cur.fetchall()
+            print(result)
+            for i in result:
+                await bot.send_message(chat_id=int(i[0]), text = message.text)
+            await state.finish()
     await state.finish()
 
 @dp.message_handler()
