@@ -1,18 +1,25 @@
 from aiogram import Bot, Dispatcher, executor, types 
+from aiogram.dispatcher.filters.state import StatesGroup, State
+from aiogram.dispatcher import FSMContext
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 import config
 import psycopg2
 import logging
 import os
 
 bot = Bot(token = config.token)
-dp = Dispatcher(bot)
+dp = Dispatcher(bot, storage=MemoryStorage())
 connect = psycopg2.connect(
     user = config.DATABASE_USER,
     password = config.DATABASE_USER_PASSWORD,
     database = config.DATABASE_NAME,
     host = config.DATABASE_HOST,
 )
+storage = MemoryStorage()
 logging.basicConfig(level=logging.INFO)
+
+class MailingState(StatesGroup):
+    mail = State()
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
@@ -61,15 +68,20 @@ async def send_contacts(message: types.Message):
 async def create_admin(message: types.Message):
     await message.answer("Суперадмин")
 
-@dp.message_handler(commands='mailing')
+@dp.message_handler(commands=['mailing'])
 async def mailing(message: types.Message):
+    await message.answer("Введите сообщение рассылки")
+    await MailingState.mail.set()
+
+@dp.message_handler(state = MailingState.mail)
+async def send_mailing(message: types.Message, state : FSMContext):
     cur = connect.cursor()
     cur.execute("SELECT chat_id FROM telegram_users;")
     result = cur.fetchall()
     print(result)
     for i in result:
-        print(int(i[0]))
-        await bot.send_message(chat_id=int(i[0]), text = "Рассылка")
+        await bot.send_message(chat_id=int(i[0]), text = message.text)
+    await state.finish()
 
 @dp.message_handler()
 async def not_found(message: types.Message):
