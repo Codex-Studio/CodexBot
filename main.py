@@ -65,6 +65,40 @@ async def send_contacts(message: types.Message):
         # else:
         #     await message.answer("Вы не имеете право получать такую информацию")
 
+@dp.message_handler(commands=['help'])
+async def help(message: types.Message):
+    await message.answer("""Вот мои комманды:
+/start - запустить бота
+/help - получить информацию 
+/about - узнать о компании
+/services - узнать услуги
+/contact - оставить заявку""")
+
+@dp.message_handler(commands=['about'])
+async def about(message: types.Message):
+    about_cur = connect.cursor()
+    about_cur.execute("SELECT title, description FROM settings_aboutus ORDER BY id DESC;")
+    res = about_cur.fetchall()
+    await message.answer(f"""{res[0][0]},
+
+{res[0][1]}""")
+
+@dp.message_handler(commands=['services'])
+async def services(message: types.Message):
+    service = connect.cursor()
+    service.execute("SELECT title, price FROM settings_service;")
+    res = service.fetchall()
+    for i in res:
+        ser_res = "".join(str(i).replace('(', '').replace(')', '').replace(',', '').replace("'", ''))
+        with open('services.txt', 'a+') as s:
+            s.write(f"{ser_res}$\n")
+    with open('services.txt', 'r') as r:
+        await message.answer(f"""Вот наши услуги:
+        
+{r.read()}""")
+        os.remove('services.txt')
+        
+
 @dp.message_handler(commands=['create_admin'])
 async def create_admin(message: types.Message):
     await message.answer("Суперадмин")
@@ -87,16 +121,20 @@ async def send_mailing(message: types.Message, state : FSMContext):
     admin = connect.cursor()
     admin.execute(f"SELECT id_telegram FROM users_user;")
     result = admin.fetchall()
-    for user in result:
-        if message.from_user.id in user:
-            cur = connect.cursor()
-            cur.execute("SELECT chat_id FROM telegram_users_telegramuser;")
-            result = cur.fetchall()
-            print(result)
-            for i in result:
-                await bot.send_message(chat_id=int(i[0]), text = message.text)
-            await state.finish()
-    await state.finish()
+    try:
+        await message.answer("Началась рассылка")
+        for user in result:
+            if message.from_user.id in user:
+                cur = connect.cursor()
+                cur.execute("SELECT chat_id FROM telegram_users_telegramuser;")
+                result = cur.fetchall()
+                for i in result:
+                    await bot.send_message(chat_id=int(i[0]), text = message.text)
+                await state.finish()
+        await state.finish()
+    except:
+        await message.answer("Произошла ошибка, повторите попытку позже")
+        await state.finish()
 
 @dp.message_handler()
 async def not_found(message: types.Message):
