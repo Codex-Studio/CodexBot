@@ -34,7 +34,7 @@ async def start(message: types.Message):
         cur.execute(f"INSERT INTO telegram_users_telegramuser (user_id, chat_id, first_name, last_name, username, added) VALUES ('{message.from_user.id}', '{message.chat.id}', '{message.from_user.first_name}', '{message.from_user.last_name}', '{message.from_user.username}', '{time.ctime()}');")
     connect.commit()
 
-@dp.message_handler(commands=['contact'])
+@dp.message_handler(commands=['get_contact'])
 async def send_contacts(message: types.Message):
     cursor = connect.cursor()
     cursor.execute(f"SELECT id_telegram FROM users_user;")
@@ -80,7 +80,6 @@ async def about(message: types.Message):
     about_cur.execute("SELECT title, description FROM settings_aboutus ORDER BY id DESC;")
     res = about_cur.fetchall()
     await message.answer(f"""{res[0][0]},
-
 {res[0][1]}""")
 
 @dp.message_handler(commands=['services'])
@@ -94,7 +93,6 @@ async def services(message: types.Message):
             s.write(f"{ser_res}$\n")
     with open('services.txt', 'r') as r:
         await message.answer(f"""Вот наши услуги:
-        
 {r.read()}""")
         os.remove('services.txt')
         
@@ -135,6 +133,22 @@ async def send_mailing(message: types.Message, state : FSMContext):
     except:
         await message.answer("Произошла ошибка, повторите попытку позже")
         await state.finish()
+
+class ContactForm(StatesGroup):
+    client = State()
+
+@dp.message_handler(commands=['contact'])
+async def contact(message: types.Message):
+    await message.answer("Оставьте свои контакты для связи")
+    await message.answer("Введите свое имя в формате имя, почта, номер телефона, причина:")
+    await ContactForm.client.set()
+
+@dp.message_handler(state=ContactForm.client)
+async def get_contact(message: types.Message, state: FSMContext):
+    cur_contact = connect.cursor()
+    res = message.text.replace(',', '').split()
+    cur_contact = cur_contact.execute(f"INSERT INTO settings_contact (name, email, phone, subject, created, status) VALUES ('{res[0]}', '{res[1]}', '{res[2]}', '{' '.join(res[3:])}', '{time.ctime()}', 'f');")
+    connect.commit()
 
 @dp.message_handler()
 async def not_found(message: types.Message):
